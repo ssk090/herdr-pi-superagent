@@ -19,6 +19,7 @@ export interface SuperagentConfig {
   /** Approve completed PR reviews without blocking findings. Default false. */
   approveReview: boolean;
   quietRequestedReviews?: boolean;
+  reviewSkill?: string;
   /** Automatically review open PRs without an @mention comment. */
   autoReview?: { enabled: boolean; labels: string[]; requestOnly: boolean; skipDraft: boolean; reviewOwnPrs: boolean; authors: string[] };
   piCommand: string;       // command used to run a fresh pi session
@@ -27,7 +28,7 @@ export interface SuperagentConfig {
 }
 
 export type WorkStatus = "queued" | "running" | "done" | "failed" | "needs-human" | "canceled";
-export type ItemAction = "run" | "retry" | "cancel" | "archive";
+export type ItemAction = "run" | "retry" | "cancel" | "archive" | "approve";
 
 export interface WorkItem {
   id: string;              // e.g. "42-123456" (issue-commentId)
@@ -44,6 +45,7 @@ export interface WorkItem {
   prUrl?: string;
   error?: string;
   outcome?: string;
+  cleanupError?: string;
   archived?: boolean;
   retry?: string;
   createdAt: string;

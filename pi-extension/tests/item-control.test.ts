@@ -51,10 +51,12 @@ test("retry uses another worktree, and cancellation aborts the worker without pu
   await fixture(exec, async (a, item, gh) => {
     await a.controlItem("retry", item.id);
     await started;
+    expect(a.itemProgress(item.id)).toMatchObject({ stage: "Reviewing PR", startedAt: expect.any(Number) });
     expect(exec.mock.calls.find(([cmd, args]) => cmd === "git" && args.includes("add"))?.[1][3]).not.toBe(`superagent/${item.id}`);
     await a.controlItem("cancel", item.id);
     await vi.waitFor(() => expect(item.status).toBe("canceled"));
     expect(gh.review).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(a.itemProgress(item.id)).toBeUndefined());
     expect(exec.mock.calls.some(([, args]) => args.includes("remove"))).toBe(false);
     await a.store.save();
   }, "failed");
@@ -74,11 +76,23 @@ test("cancel refuses after publication starts", async () => {
     await publishing;
     try {
       expect(a.itemPhase(item.id)).toBe("publishing");
+      expect(a.itemProgress(item.id)).toMatchObject({ stage: "Publishing to GitHub" });
       await expect(a.controlItem("cancel", item.id)).rejects.toThrow(/Publishing already started/);
     } finally { release(); }
     await vi.waitFor(() => expect(a.running).toBe(0));
     expect(item.status).toBe("done");
   });
+});
+
+test("manual approval submits only once and leaves the item visible", async () => {
+  await fixture(vi.fn<Exec>().mockResolvedValue(ok), async (a, item, gh) => {
+    vi.spyOn(gh, "openReviewableHead").mockResolvedValue("manual-head");
+    await a.controlItem("approve", item.id);
+    expect(gh.review).toHaveBeenCalledExactlyOnceWith(57, "manual-head", "", true, []);
+    expect(item.outcome).toBe("Approved manually");
+    expect(item.archived).toBeUndefined();
+    await expect(a.controlItem("approve", item.id)).rejects.toThrow(/already approved/i);
+  }, "done");
 });
 
 test("run now cannot bypass dry-run or a removed review request", async () => {

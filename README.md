@@ -13,4 +13,10 @@ A Herdr layout with a top-bar button and docked Superagent sidebar. See [RECIPE.
 
 The mod calls local `curl` over a private Unix socket. It does not start GitHub work on its own. Starting the watcher or running a work item can publish to GitHub when dry-run is off. Closing Pi stops its watcher.
 
+A completed review or successful post automatically removes its Superagent worktree. Failed or canceled work keeps the checkout for inspection. Use **Remove worktree** on an item or **Clean up worktrees** at the bottom of the panel to remove idle checkouts, including older attempts. After confirmation, cleanup discards uncommitted changes in those checkouts and keeps their branches. It does not remove unrelated worktrees.
+
+Use **View filters** to inspect checked, eligible, already tracked, and newly queued PRs from the last poll. These filters only affect what the sidebar displays. Finished review items can be manually approved after confirmation without archiving them.
+
+A fresh direct GitHub review request can create a new work item for a previously reviewed PR, even if the old item is archived. Repeated polls of the same request do not queue duplicates.
+
 The included extension retains the upstream [MIT license](pi-extension/LICENSE).

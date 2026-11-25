@@ -79,11 +79,32 @@ export class GitHub {
     return pr.head.sha;
   }
 
-  async requestedReview(n: number, login: string) {
+  private async reviewablePr(n: number) {
     if (!(await this.isPullRequest(n))) return;
     const pr = await this.api<{ state: string; draft: boolean; head: { sha: string }; user: { login: string }; requested_reviewers: { login: string }[] }>(`repos/${this.repo}/pulls/${n}`);
-    if (pr.state !== "open" || pr.draft || !pr.requested_reviewers.some(u => u.login.toLowerCase() === login.toLowerCase())) return;
+    if (pr.state === "open" && !pr.draft) return pr;
+  }
+
+  async openReviewableHead(n: number, login: string) {
+    const pr = await this.reviewablePr(n);
+    if (pr && pr.user.login.toLowerCase() !== login.toLowerCase()) return pr.head.sha;
+  }
+
+  async requestedReview(n: number, login: string) {
+    const pr = await this.reviewablePr(n);
+    if (!pr?.requested_reviewers.some(u => u.login.toLowerCase() === login.toLowerCase())) return;
     return { head: pr.head.sha, author: pr.user.login };
+  }
+
+  async latestReviewRequest(n: number, login: string) {
+    type Event = { id?: number; event?: string; created_at?: string; requested_reviewer?: { login: string } };
+    const pages = await this.api<Event[][]>(`repos/${this.repo}/issues/${n}/timeline?per_page=100`, ["--paginate", "--slurp"]);
+    const reviewer = login.toLowerCase();
+    const latest = pages.flat().filter(e =>
+      (e.event === "review_requested" || e.event === "review_request_removed") &&
+      e.requested_reviewer?.login.toLowerCase() === reviewer).at(-1);
+    if (latest?.event !== "review_requested" || !latest.id || !Number.isSafeInteger(latest.id) || !latest.created_at) return;
+    return { id: latest.id, createdAt: latest.created_at };
   }
 
   async hasPeerApproval(n: number, head: string, login: string, author: string) {

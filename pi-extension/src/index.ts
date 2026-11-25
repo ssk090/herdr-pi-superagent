@@ -1,5 +1,6 @@
 import { isToolCallEventType, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Superagent } from "./agent.ts";
+import { managedWorktrees } from "./executor.ts";
 import { loadConfig } from "./config.ts";
 import { checkCommand } from "./guard.ts";
 import { herdrSocket, serveHerdr, type HerdrAction } from "./herdr.ts";
@@ -88,11 +89,15 @@ export default function superagent(pi: ExtensionAPI) {
         try { ({ repo, dryRun } = await loadConfig(cwd)); }
         catch (e) { error = (e as Error).message; }
       }
-      return { cwd, repo, dryRun, error, itemControls: true, active: current?.active ?? false, polling: current?.polling ?? false,
+      const worktrees = repo ? await managedWorktrees(exec, cwd).catch(() => undefined) : undefined;
+      return { cwd, repo, dryRun, error, itemControls: true, manualApproval: true, liveProgress: true, worktrees: worktrees?.map(w => w.id), active: current?.active ?? false, polling: current?.polling ?? false,
         lastPoll: current?.lastPoll, lastPollSummary: current?.lastPollSummary, items: store.state.items.filter(item => !item.archived)
-          .map(item => ({ ...item, phase: current?.itemPhase(item.id) })),
+          .map(item => ({ ...item, phase: current?.itemPhase(item.id), progress: current?.itemProgress(item.id) })),
         archivedItems: store.state.items.filter(item => item.archived) };
-    }, action => control(action, cwd), (action, id) => itemControl(action, id, cwd));
+    }, action => control(action, cwd), (action, id) => itemControl(action, id, cwd), id => enqueue(async () => {
+      agent ??= await loadAgent(cwd);
+      await agent.removeWorktrees(id);
+    }));
     try { await bridge; }
     catch (e) { bridge = undefined; throw e; }
     return true;

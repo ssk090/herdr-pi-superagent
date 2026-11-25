@@ -25,6 +25,7 @@ export function normalizeConfig(raw: unknown): SuperagentConfig {
     rules,
     approveReview: r.approveReview === true,
     quietRequestedReviews: r.quietRequestedReviews === true,
+    reviewSkill: typeof r.reviewSkill === "string" ? r.reviewSkill.trim() || undefined : undefined,
     autoReview: r.autoReview ? {
       enabled: Boolean(r.autoReview.enabled ?? false),
       labels: Array.isArray(r.autoReview.labels) ? r.autoReview.labels.map(String) : [],

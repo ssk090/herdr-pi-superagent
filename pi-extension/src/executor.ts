@@ -1,4 +1,6 @@
-import { join } from "node:path";
+import { readFile, realpath } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
 import type { Exec, SuperagentConfig, WorkItem } from "./types.ts";
 import type { GitHub } from "./github.ts";
 import { workerPrompt, tail } from "./prompt.ts";
@@ -6,7 +8,7 @@ import { parseReview } from "./review.ts";
 
 export interface RunResult { status: "done" | "needs-human" | "failed"; prUrl?: string; summary: string; branch: string; worktree: string; review?: ReturnType<typeof parseReview>; head?: string }
 
-export async function runWorkItem(item: WorkItem, cfg: SuperagentConfig, deps: { exec: Exec; gh: GitHub; cwd: string; beforePublish?: () => void }): Promise<RunResult> {
+export async function runWorkItem(item: WorkItem, cfg: SuperagentConfig, deps: { exec: Exec; gh: GitHub; cwd: string; beforePublish?: () => void; onWorkerStart?: () => void }): Promise<RunResult> {
   const { exec, gh, cwd } = deps;
   const attempt = item.retry ? `${item.id}-${item.retry}` : item.id;
   const branch = `superagent/${attempt}`;
@@ -17,12 +19,16 @@ export async function runWorkItem(item: WorkItem, cfg: SuperagentConfig, deps: {
     return r.stdout;
   };
 
+  const skill = item.kind === "review" && cfg.reviewSkill
+    ? await readFile(resolve(cwd, cfg.reviewSkill.replace(/^~\//, `${homedir()}/`)), "utf8")
+    : undefined;
   const head = item.kind === "review" ? await gh.pullRequestHead(item.issue) : undefined;
   await must("git", ["fetch", "origin", cfg.baseBranch]);
   await must("git", ["worktree", "add", "-B", branch, worktree, `origin/${cfg.baseBranch}`]);
 
   // Fresh, isolated pi session in the worktree. SUPERAGENT_WORKER=1 turns on the tool_call guard.
-  const run = await exec("env", ["SUPERAGENT_WORKER=1", cfg.piCommand, ...cfg.piArgs, "-p", workerPrompt(item, cfg)], { cwd: worktree, timeout: 60 * 60_000 });
+  deps.onWorkerStart?.();
+  const run = await exec("env", ["SUPERAGENT_WORKER=1", cfg.piCommand, ...cfg.piArgs, "-p", workerPrompt(item, cfg, skill)], { cwd: worktree, timeout: 60 * 60_000 });
   const raw = run.stdout.trim() || run.stderr.trim();
   const summary = tail(raw, 3000);
   if (run.code !== 0) return { status: "failed", summary, branch, worktree };
@@ -46,6 +52,21 @@ export async function runWorkItem(item: WorkItem, cfg: SuperagentConfig, deps: {
   return { status: "done", prUrl, summary, branch, worktree };
 }
 
+export async function managedWorktrees(exec: Exec, cwd: string) {
+  const root = join(await realpath(cwd), ".pi", "superagent", "worktrees");
+  const result = await exec("git", ["worktree", "list", "--porcelain", "-z"], { cwd });
+  if (result.code !== 0) throw new Error(`Cannot list Git worktrees: ${result.stderr.trim()}`);
+  return result.stdout.split("\0\0").flatMap(record => {
+    const [entry, ...fields] = record.split("\0");
+    if (!entry.startsWith("worktree ")) return [];
+    const path = entry.slice(9), name = basename(path);
+    const id = /^(\d+--?\d+)(?:-[a-f0-9]{8})?$/.exec(name)?.[1];
+    if (!id || dirname(path) !== root || !fields.includes(`branch refs/heads/superagent/${name}`)) return [];
+    return [{ id, path }];
+  });
+}
+
 export async function cleanupWorktree(exec: Exec, cwd: string, worktree: string) {
-  await exec("git", ["worktree", "remove", "--force", worktree], { cwd });
+  const result = await exec("git", ["worktree", "remove", "--force", worktree], { cwd });
+  if (result.code !== 0) throw new Error(result.stderr.trim() || "Git could not remove the worktree");
 }

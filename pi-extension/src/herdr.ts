@@ -14,7 +14,7 @@ export function herdrSocket(terminal = process.env.HC_TERMINAL_ID) {
 }
 
 export async function serveHerdr(socket: string, status: () => Promise<object>, command: (action: HerdrAction) => Promise<void>,
-  itemCommand?: (action: ItemAction, id: string) => Promise<void>) {
+  itemCommand?: (action: ItemAction, id: string) => Promise<void>, cleanWorktrees?: (id?: string) => Promise<void>) {
   const dir = dirname(socket);
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const info = await lstat(dir);
@@ -30,7 +30,12 @@ export async function serveHerdr(socket: string, status: () => Promise<object>, 
     try {
       if (req.method === "GET" && req.url === "/ready") return reply(200, { ready: true });
       if (req.method === "GET" && req.url === "/status") return reply(200, await status());
-      const item = /^\/items\/(\d+--?\d+)\/(run|retry|cancel|archive)$/.exec(req.url ?? "");
+      const clean = /^\/worktrees(?:\/(\d+--?\d+))?\/remove$/.exec(req.url ?? "");
+      if (req.method === "POST" && clean && cleanWorktrees) {
+        await cleanWorktrees(clean[1]);
+        return reply(200, { ok: true });
+      }
+      const item = /^\/items\/(\d+--?\d+)\/(run|retry|cancel|archive|approve)$/.exec(req.url ?? "");
       if (req.method === "POST" && item && itemCommand) {
         await itemCommand(item[2] as ItemAction, item[1]);
         return reply(200, { ok: true });

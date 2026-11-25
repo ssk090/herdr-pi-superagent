@@ -3,11 +3,11 @@ type Severity = keyof typeof markers;
 export type InlineComment = { path: string; line: number; side: "RIGHT"; body: string };
 
 export function parseReview(raw: string) {
-  const invalid = { valid: false, body: raw.trim(), approve: false, comments: [] as InlineComment[], criticalComments: [] as InlineComment[], criticalSummary: "" };
+  const invalid = { valid: false, body: raw.trim(), approve: false, comments: [] as InlineComment[], criticalComments: [] as InlineComment[], criticalSummary: "", contextGap: "" };
   try {
-    const { summary, verdict, findings, criticalSummary = "" } = JSON.parse(raw.trim().replace(/^```json\s*|\s*```$/g, ""));
+    const { summary, verdict, findings, criticalSummary = "", contextGap = "" } = JSON.parse(raw.trim().replace(/^```json\s*|\s*```$/g, ""));
     if (typeof summary !== "string" || !summary.trim() || !["APPROVE", "COMMENT"].includes(verdict) ||
-        !Array.isArray(findings) || typeof criticalSummary !== "string") return invalid;
+        !Array.isArray(findings) || typeof criticalSummary !== "string" || typeof contextGap !== "string") return invalid;
     const comments: InlineComment[] = [], criticalComments: InlineComment[] = [];
     let blocking = Boolean(criticalSummary.trim());
     for (const f of findings) {
@@ -21,6 +21,6 @@ export function parseReview(raw: string) {
       comments.push(comment);
       if (severity === "P1" || (severity === "P2" && f.blocking)) criticalComments.push(comment);
     }
-    return { valid: true, body: summary.trim(), approve: verdict === "APPROVE" && !blocking, comments, criticalComments, criticalSummary: criticalSummary.trim() };
+    return { valid: true, body: summary.trim(), approve: verdict === "APPROVE" && !blocking && !contextGap.trim(), comments, criticalComments, criticalSummary: criticalSummary.trim(), contextGap: contextGap.trim() };
   } catch { return invalid; }
 }
