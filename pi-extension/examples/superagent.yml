@@ -1,0 +1,24 @@
+# Copy to <your repo>/.pi/superagent.yml
+repo: your-org/your-repo        # the one GitHub repository this agent serves
+mention: "@your-agent-bot"      # GitHub login of the dedicated agent account (NOT your own)
+allow:                          # who may dispatch work. Start with just yourself.
+  - your-github-login
+baseBranch: main
+pollIntervalSec: 60             # minimum 15
+maxConcurrent: 1
+dryRun: true                    # record work items only; set false when you trust it
+rules:                          # team-written rules for proactive work (still allow-list only)
+  - label: agent-ok             # issues with this label: allowed users' comments trigger work without @mention
+    action: work
+  - label: no-agent             # never act on these
+    action: ignore
+approveReview: false            # approve completed reviews with no blockers; GitHub forbids self-approval
+autoReview:                     # review open PRs without an @mention comment
+  enabled: false
+  requestOnly: true             # other people's PRs: only where this account is a requested reviewer
+  reviewOwnPrs: false           # your own PRs cannot be self-requested; review them when true
+  skipDraft: true
+  authors: []                   # optional: only PRs by these logins
+  labels: []                    # optional: only PRs carrying all of these labels
+# piCommand: pi
+# piArgs: ["--model", "deepseek/deepseek-chat"]
