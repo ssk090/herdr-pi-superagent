@@ -205,6 +205,25 @@ describe("agent poll (fake gh/git/pi)", () => {
     expect(store.state.items).toHaveLength(1);
   });
 
+  it("reacts with eyes to an auto-queued PR in quiet mode", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "sa-eyes-"));
+    const calls: string[] = [];
+    const exec: Exec = async (cmd, args) => {
+      const line = `${cmd} ${args.join(" ")}`; calls.push(line);
+      if (line.startsWith("gh api repos/acme/app/issues/comments")) return { code: 0, stderr: "", stdout: "[]" };
+      if (line === "gh api user --jq .login") return { code: 0, stderr: "", stdout: "acme-bot\n" };
+      if (line.startsWith("gh pr list")) return { code: 0, stderr: "", stdout: JSON.stringify([
+        { number: 50, title: "Quiet", author: { login: "alice" }, isDraft: false, labels: [], reviewRequests: [{ login: "acme-bot" }] },
+      ]) };
+      return { code: 0, stderr: "", stdout: "" };
+    };
+    const store = new WorkStore(join(dir, "state.json"));
+    store.state.cursor = "2000-01-01T00:00:00Z";
+    const a = new Superagent({ ...cfg, quietRequestedReviews: true, autoReview: { enabled: true, labels: [], requestOnly: true, skipDraft: true, reviewOwnPrs: false, authors: [] } }, store, exec, dir);
+    await a.poll();
+    expect(calls.some((c) => c.startsWith("gh api -X POST repos/acme/app/issues/50/reactions") && c.includes("content=eyes"))).toBe(true);
+  });
+
   it("auto-reviews your own PR even though it cannot be self-requested", async () => {
     const dir = await mkdtemp(join(tmpdir(), "sa-own-"));
     const calls: string[] = [];
