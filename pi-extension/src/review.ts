@@ -1,3 +1,7 @@
+const FOOTER = "\n\n---\n_🤖 Automated review by pi-superagent_";
+/** One consistent PR comment layout: emoji title, body, footer. */
+export const formatComment = (title: string, body = "") => `${title}${body.trim() ? `\n\n${body.trim()}` : ""}${FOOTER}`;
+
 const markers = { P1: "🔴", P2: "⚠️", P3: "🟡", Rollout: "🚦" } as const;
 type Severity = keyof typeof markers;
 export type InlineComment = { path: string; line: number; side: "RIGHT"; body: string };

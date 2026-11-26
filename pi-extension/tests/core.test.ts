@@ -171,7 +171,7 @@ describe("agent poll (fake gh/git/pi)", () => {
       return;
     }
     expect(JSON.parse(payload!)).toEqual({
-      commit_id: "abc123", event: "APPROVE", body: "✅ **Approved**\n\nlooks good",
+      commit_id: "abc123", event: "APPROVE", body: expect.stringMatching(/^✅ \*\*Approved\*\*\n\nlooks good\n\n---\n_🤖/),
       comments: [{ path: finding.path, line: 42, side: "RIGHT", body: "⚠️ **P2 · Title**\n\nImpact\n\n💡 Fix it" }],
     });
   });
