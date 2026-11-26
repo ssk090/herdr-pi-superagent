@@ -318,8 +318,13 @@ export class Superagent {
     if (r.head !== request.head || !(await stillRequested())) finish("Skipped: the review request or PR head changed");
     else {
       if (!r.review?.valid) throw new Error("Review worker returned invalid JSON; nothing was posted");
-      if (r.review.contextGap) finish(`Review context incomplete: ${r.review.contextGap}`);
-      else if (r.review.approve && this.cfg.approveReview) {
+      if (r.review.contextGap) {
+        // Surface the gap instead of silently dropping the review; never approve on unverified context.
+        beforePublish();
+        const body = `⚠️ **Review context incomplete, not approved**\n\n${r.review.contextGap}\n\n${r.review.criticalSummary || r.summary}`;
+        await this.gh.review(item.issue, request.head, body, false, r.review.criticalComments);
+        finish(`Review context incomplete: ${r.review.contextGap}`);
+      } else if (r.review.approve && this.cfg.approveReview) {
         beforePublish();
         await this.gh.review(item.issue, request.head, r.summary, true, []);
         finish("Approved after review");
