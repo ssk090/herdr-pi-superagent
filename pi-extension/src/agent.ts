@@ -5,6 +5,7 @@ import { runWorkItem, cleanupWorktree, managedWorktrees, type RunResult } from "
 import { isReviewRequest } from "./prompt.ts";
 import type { Exec, ItemAction, SuperagentConfig, Trigger, WorkItem } from "./types.ts";
 import { WorkStore } from "./workitems.ts";
+import { formatComment } from "./review.ts";
 
 export interface AgentEvents { onChange?: () => void; log?: (msg: string) => void }
 
@@ -112,7 +113,7 @@ export class Superagent {
       if (!login) throw new Error("Could not identify the authenticated GitHub account");
       const head = await this.gh.openReviewableHead(item.issue, login);
       if (!head) throw new Error("Only open, non-draft PRs by another author can be approved");
-      await this.gh.review(item.issue, head, "", true, []);
+      await this.gh.review(item.issue, head, formatComment("✅ **Approved**", "Approved manually after review."), true, []);
       this.store.update(id, { outcome: "Approved manually" });
     } else if (action === "archive") {
       if (job || item.status === "queued" || item.status === "running") throw new Error("Cancel or finish this item before archiving it");
@@ -307,7 +308,7 @@ export class Superagent {
       if (!this.cfg.approveReview) return finish("Skipped: peer approved; automatic approval is disabled");
       if (!(await stillRequested())) return finish("Skipped: the review request or PR head changed");
       beforePublish();
-      await this.gh.review(item.issue, request.head, "Approved based on a peer approval of this commit.", true, []);
+      await this.gh.review(item.issue, request.head, formatComment("✅ **Approved**", "🤝 A teammate already approved this exact commit, so no further review was needed."), true, []);
       return finish("Approved: peer review already covered this commit");
     }
 
@@ -321,17 +322,17 @@ export class Superagent {
       if (r.review.contextGap) {
         // Surface the gap instead of silently dropping the review; never approve on unverified context.
         beforePublish();
-        const body = `⚠️ **Review context incomplete, not approved**\n\n${r.review.contextGap}\n\n${r.review.criticalSummary || r.summary}`;
+        const body = formatComment("⚠️ **Review context incomplete, not approved**", `🔍 **Could not verify**\n${r.review.contextGap}\n\n📝 **Summary**\n${r.review.criticalSummary || r.summary}`);
         await this.gh.review(item.issue, request.head, body, false, r.review.criticalComments);
         finish(`Review context incomplete: ${r.review.contextGap}`);
       } else if (r.review.approve && this.cfg.approveReview) {
         beforePublish();
-        await this.gh.review(item.issue, request.head, r.summary, true, []);
+        await this.gh.review(item.issue, request.head, formatComment("✅ **Approved**", r.summary), true, []);
         finish("Approved after review");
       } else if (!r.review.criticalSummary && !r.review.criticalComments.length) finish("No new critical findings posted");
       else {
         beforePublish();
-        await this.gh.review(item.issue, request.head, r.review.criticalSummary || "New critical findings are noted inline.", false, r.review.criticalComments);
+        await this.gh.review(item.issue, request.head, formatComment("🔴 **Critical findings**", r.review.criticalSummary || "See the inline comments below. 👇"), false, r.review.criticalComments);
         finish("Posted new critical findings");
       }
     }
@@ -344,7 +345,7 @@ export class Superagent {
     const { head, review } = result;
     if (!head || !review) {
       beforePublish();
-      await this.gh.comment(item.issue, text);
+      await this.gh.comment(item.issue, formatComment("💬 **Review**", text));
       return "Posted a comment";
     }
     if (await this.gh.pullRequestHead(item.issue) !== head) {
@@ -353,13 +354,13 @@ export class Superagent {
     beforePublish();
     if (review.approve && this.cfg.approveReview) {
       try {
-        await this.gh.review(item.issue, head, `✅ **Approved**\n\n${text}`, true, review.comments);
+        await this.gh.review(item.issue, head, formatComment("✅ **Approved**", text), true, review.comments);
         return "Approved after review";
       } catch (e) {
         if (!(e instanceof Error) || !/can\s*not approve your own pull request/i.test(e.message)) throw e;
       }
     }
-    await this.gh.review(item.issue, head, `💬 **Review findings**\n\n${text}`, false, review.comments);
+    await this.gh.review(item.issue, head, formatComment("💬 **Review findings**", text), false, review.comments);
     return "Posted a review without approval";
   }
 

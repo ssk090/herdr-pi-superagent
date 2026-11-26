@@ -88,7 +88,7 @@ test("manual approval submits only once and leaves the item visible", async () =
   await fixture(vi.fn<Exec>().mockResolvedValue(ok), async (a, item, gh) => {
     vi.spyOn(gh, "openReviewableHead").mockResolvedValue("manual-head");
     await a.controlItem("approve", item.id);
-    expect(gh.review).toHaveBeenCalledExactlyOnceWith(57, "manual-head", "", true, []);
+    expect(gh.review).toHaveBeenCalledExactlyOnceWith(57, "manual-head", expect.stringContaining("✅ **Approved**"), true, []);
     expect(item.outcome).toBe("Approved manually");
     expect(item.archived).toBeUndefined();
     await expect(a.controlItem("approve", item.id)).rejects.toThrow(/already approved/i);
