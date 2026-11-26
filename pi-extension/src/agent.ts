@@ -72,7 +72,7 @@ export class Superagent {
       const item = this.store.open(t, request, kind);
       summary.queued++;
       this.ev.log?.(`opened ${item.id} (${d.reason})`);
-      if (!this.cfg.dryRun && !this.cfg.quietRequestedReviews) {
+      if (!this.cfg.dryRun) {
         // Acknowledge with a 👀 reaction on the PR/issue, not a comment.
         try { await this.gh.react(t.issue, "eyes"); }
         catch (e) { this.ev.log?.(`react ${t.issue} failed: ${(e as Error).message ?? e}`); }
@@ -289,10 +289,9 @@ export class Superagent {
       summary.queued++;
       result.decision = "queued";
       this.ev.log?.(`auto-review queued #${pr.number} (${pr.title})`);
-      if (!this.cfg.quietRequestedReviews) {
-        try { await this.gh.react(pr.number, "eyes"); }
-        catch { /* a missing reaction is not worth failing the poll */ }
-      }
+      // A 👀 reaction is not a comment, so quiet mode keeps it as the "picked up" signal.
+      try { await this.gh.react(pr.number, "eyes"); }
+      catch (e) { this.ev.log?.(`react ${pr.number} failed: ${(e as Error).message ?? e}`); }
     }
     return eligible;
   }
