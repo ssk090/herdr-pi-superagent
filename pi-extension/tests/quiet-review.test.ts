@@ -37,7 +37,7 @@ test.each([
   { request: true, peer: true, critical: false, expected: "Approved", event: true },
   { request: true, peer: false, critical: false, expected: "Approved after review", event: true },
   { request: true, peer: false, critical: false, expected: "No new", event: undefined, approvalDisabled: true },
-  { request: true, peer: false, critical: false, expected: "Review context incomplete", event: undefined, contextGap: "Backend PR inaccessible" },
+  { request: true, peer: false, critical: false, expected: "Review context incomplete", event: false, contextGap: "Backend PR inaccessible" },
   { request: true, peer: false, critical: true, expected: "Posted", event: false },
   { request: true, peer: false, critical: true, expected: "Posted", event: false, cleanupFails: true },
   { request: true, peer: false, critical: true, event: false, postingFails: true },
